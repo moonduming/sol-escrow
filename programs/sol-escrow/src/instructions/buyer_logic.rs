@@ -22,6 +22,28 @@ pub struct BuyerTransfers {
     pub amount: u64
 }
 
+#[event]
+pub struct OrderCancelled {
+    pub buyer: Pubkey,
+    pub escrow: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct FundsRefunded {
+    pub buyer: Pubkey,
+    pub amount: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct OrderFunded {
+    pub buyer: Pubkey,
+    pub escrow: Pubkey,
+    pub amount: u64,
+    pub timestamp: i64,
+}
+
 
 #[derive(Accounts)]
 pub struct CreateOrder<'info> {
@@ -181,6 +203,13 @@ pub fn process_buyer_payment(ctx: Context<BuyerPayment>) -> Result<()> {
         amount: escrow_account.amount
     });
 
+    emit!(OrderFunded {
+        buyer: ctx.accounts.buyer.key(),
+        escrow: escrow_account.key(),
+        amount: escrow_account.amount,
+        timestamp: clock.unix_timestamp,
+    });
+
     escrow_account.status = TransactionStatus::Funded as u8;
 
     Ok(())
@@ -218,12 +247,25 @@ pub fn process_order_cancellation(ctx: Context<OrderCancellation>) -> Result<()>
         );
         
         transfer_checked(cpi_ctx, escrow_account.amount, ctx.accounts.mint.decimals)?;
+        
+        emit!(FundsRefunded {
+            buyer: ctx.accounts.buyer.key(),
+            amount: escrow_account.amount,
+            timestamp: clock.unix_timestamp,
+        });
+        
         msg!("用户取消订单，退款");
     };
 
     let escrow_account = &mut ctx.accounts.escrow;
 
     escrow_account.status = TransactionStatus::Cancelled as u8;
+
+    emit!(OrderCancelled {
+        buyer: ctx.accounts.buyer.key(),
+        escrow: escrow_account.key(),
+        timestamp: clock.unix_timestamp,
+    });
 
     Ok(())
 }

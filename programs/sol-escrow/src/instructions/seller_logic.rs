@@ -2,6 +2,13 @@ use anchor_lang::prelude::*;
 
 use crate::{error::ErrorCode, state::{Escrow, TransactionStatus}};
 
+#[event]
+pub struct SellerConfirmed {
+    pub escrow: Pubkey,
+    pub seller: Pubkey,
+    pub buyer: Pubkey,
+    pub timestamp: i64,
+}
 
 #[derive(Accounts)]
 pub struct SellerConfirmation<'info> {
@@ -15,10 +22,8 @@ pub struct SellerConfirmation<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
-
     pub system_program: Program<'info, System>,
 }
-
 
 pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<()> {
     let escrow_account = &mut ctx.accounts.escrow;
@@ -29,6 +34,13 @@ pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<(
 
     escrow_account.seller = Some(ctx.accounts.seller.key());
     escrow_account.status = TransactionStatus::InTransit as u8;
-    
+
+    emit!(SellerConfirmed {
+        escrow: escrow_account.key(),
+        seller: ctx.accounts.seller.key(),
+        buyer: ctx.accounts.buyer.key(),
+        timestamp: clock.unix_timestamp,
+    });
+
     Ok(())
 }

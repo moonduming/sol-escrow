@@ -4,6 +4,24 @@ use anchor_spl::{associated_token::AssociatedToken, token_interface::{Mint, Toke
 use crate::{error::ErrorCode, state::{Escrow, TransactionStatus}};
 
 
+#[event]
+pub struct FundsReleased {
+    pub escrow: Pubkey,
+    pub seller: Pubkey,
+    pub buyer: Pubkey,
+    pub amount: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct OrderTimedOut {
+    pub escrow: Pubkey,
+    pub buyer: Pubkey,
+    pub refunded_amount: u64,
+    pub timestamp: i64,
+}
+
+
 #[derive(Accounts)]
 pub struct EscrowRelease<'info> {
     pub buyer: SystemAccount<'info>,
@@ -104,6 +122,14 @@ pub fn process_escrow_release(ctx: Context<EscrowRelease>) -> Result<()> {
     let escrow_account = &mut ctx.accounts.escrow;
     escrow_account.status = TransactionStatus::Success as u8;
 
+    emit!(FundsReleased {
+        escrow: escrow_account.key(),
+        seller: ctx.accounts.seller.key(),
+        buyer: ctx.accounts.buyer.key(),
+        amount: escrow_account.amount,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
 }
 
@@ -141,6 +167,13 @@ pub fn process_timeout(ctx: Context<TimeoutCheck>) -> Result<()> {
 
         let escrow_account = &mut ctx.accounts.escrow;
         escrow_account.status = TransactionStatus::Expired as u8;
+
+        emit!(OrderTimedOut {
+            escrow: escrow_account.key(),
+            buyer: ctx.accounts.buyer.key(),
+            refunded_amount: escrow_account.amount,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
     }
 
     Ok(())

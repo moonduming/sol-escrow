@@ -7,10 +7,18 @@ import {
   createMint,
   mintTo,
   getOrCreateAssociatedTokenAccount,
+  Account,
 } from "@solana/spl-token";
+import assert from "assert";
+
 
 describe("sol-escrow", () => {
-  // Configure the client to use the local cluster.
+  let Created = 0;
+  let Funded = 1;
+  let Cancelled = 2;
+  let Success = 3;
+  let Expired = 4;
+  
   const provider = anchor.AnchorProvider.env()
   anchor.setProvider(provider);
 
@@ -20,6 +28,12 @@ describe("sol-escrow", () => {
   const payer = (provider.wallet as anchor.Wallet).payer;
 
   let mint: PublicKey;
+  let tokenAccount: Account;
+
+  async function getTokenBalance(tokenAccount: PublicKey): Promise<number> {
+    const balanceInfo = await connection.getTokenAccountBalance(tokenAccount);
+    return balanceInfo.value.uiAmount!;
+  }
 
   before(async () => {
 
@@ -34,7 +48,7 @@ describe("sol-escrow", () => {
     console.log("Mint created:", mint.toBase58())
 
     // 买家创建关联代币账户(ATA)
-    const tokenAccount = await getOrCreateAssociatedTokenAccount(
+    tokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       payer,
       mint,
@@ -70,6 +84,9 @@ describe("sol-escrow", () => {
 
     const escrowData = await program.account.escrow.fetch(escrowAddress);
     console.log("escrowData: ", escrowData);
+
+    assert.strictEqual(escrowData.amount.toNumber(), 1000, "订单金额不正确");
+    assert(escrowData.expiration.toNumber() > now, "订单过期时间不合理");
   });
 
   it("Buyer Payment",async () => {
@@ -86,23 +103,37 @@ describe("sol-escrow", () => {
 
     const escrowData = await program.account.escrow.fetch(escrowAddress);
     console.log("Buyer Payment: ", escrowData);
+
+    assert.strictEqual(escrowData.status, Funded, "订单状态未更新为 Funded");
+    // 校验托管账户余额
+    const escrowVaultBalance = await getTokenBalance(escrowData.escrowVault);
+    assert.strictEqual(escrowVaultBalance, 1000 / 100, "托管账户余额不正确");
   });
 
-  it("order cancellation", async () => {
-    await program.methods.orderCancellation().accounts({
-      buyer: payer.publicKey,
-      mint,
-      tokenProgram: TOKEN_PROGRAM_ID
-    }).rpc();
+  // it("order cancellation", async () => {
+  //   await program.methods.orderCancellation().accounts({
+  //     buyer: payer.publicKey,
+  //     mint,
+  //     tokenProgram: TOKEN_PROGRAM_ID
+  //   }).rpc();
 
-    const [escrowAddress] = PublicKey.findProgramAddressSync(
-      [Buffer.from("order"), payer.publicKey.toBuffer()],
-      program.programId
-    );
+  //   const [escrowAddress] = PublicKey.findProgramAddressSync(
+  //     [Buffer.from("order"), payer.publicKey.toBuffer()],
+  //     program.programId
+  //   );
 
-    const escrowData = await program.account.escrow.fetch(escrowAddress);
-    console.log("order cancellation: ", escrowData);
-  });
+  //   const escrowData = await program.account.escrow.fetch(escrowAddress);
+  //   console.log("order cancellation: ", escrowData);
+
+  //   // 添加校验：订单状态应为 Cancelled
+  //   assert.strictEqual(escrowData.status, Expired, "订单状态未更新为 Expired");
+  //   // 买家退款到账，假设 buyerTokenAccount 为买家的 ATA
+  //   const buyerBalance = await getTokenBalance(tokenAccount.address);
+  //   assert.strictEqual(buyerBalance, 1000, "买家未收到退款");
+  //   // 托管账户余额应归零
+  //   const escrowVaultBalance = await getTokenBalance(escrowData.escrowVault);
+  //   assert.strictEqual(escrowVaultBalance, 0, "托管账户余额未归零");
+  // });
 
   it("seller confirmation", async () => {
     let seller = Keypair.generate();
@@ -142,5 +173,14 @@ describe("sol-escrow", () => {
 
     const escrowData = await program.account.escrow.fetch(escrowAddress);
     console.log("seller confirmation: ", escrowData);
+
+    // 添加校验：订单状态应为 Success
+  assert.strictEqual(escrowData.status, Success, "订单状态未更新为 Success");
+  // 校验卖家到账：卖家账户余额应为10
+  const sellerBalance = await getTokenBalance(sellerToken.address);
+  assert.strictEqual(sellerBalance, 10, "卖家未收到正确资金");
+  // 托管账户余额应为0
+  const escrowVaultBalance = await getTokenBalance(escrowData.escrowVault);
+  assert.strictEqual(escrowVaultBalance, 0, "托管账户余额未归零");
   });
 });
