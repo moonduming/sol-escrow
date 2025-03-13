@@ -25,4 +25,24 @@ pub enum ErrorCode {
     /// 卖家确认订单失败，当前订单状态不允许确认
     #[msg("Seller confirmation not allowed in the current order status.")]
     SellerConfirmationNotAllowed,
+
+    /// NFT 选择无效
+    #[msg("Invalid NFT selection: Either collection_mint or nft_mint must be set, but not both.")]
+    InvalidNftSelection,
+
+    /// 卖家未提供 NFT 账户
+    #[msg("Missing NFT account: The seller must provide a valid NFT account.")]
+    MissingNftAccount,
+
+    /// 提供的 NFT 账户与订单不匹配
+    #[msg("Invalid NFT account: The provided NFT mint does not match the expected mint in the order.")]
+    InvalidNftAccount,
+
+    /// 卖家不是 NFT 的合法持有者
+    #[msg("Invalid NFT owner: The seller does not own the specified NFT.")]
+    InvalidNftOwner,
+
+    /// NFT 账户的数量无效（应为1）
+    #[msg("Invalid NFT amount: The NFT account must contain exactly one NFT.")]
+    InvalidNftAmount,
 }

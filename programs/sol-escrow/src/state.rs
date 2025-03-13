@@ -42,8 +42,12 @@ pub struct Escrow {
     pub buyer: Pubkey,  // 买家
     pub seller: Option<Pubkey>,  // 卖家
     pub token_mint: Pubkey,  // 交易的spl代币
+    pub buyer_nft_account: Option<Pubkey>, // 买家nft账户
+    pub nft_mint: Option<Pubkey>, // 购买的NFT的mint地址
+    pub collection_mint: Option<Pubkey>, // NFT集合地址
     pub amount: u64,  // 交易金额
     pub escrow_vault: Pubkey,  // 资金托管账户
+    pub is_nft: bool, // 是否是nft交易
     pub expiration: i64,  // 交易超时时间
     pub status: u8,  // 交易状态
     pub arbitrator: Option<Pubkey>  // 仲裁者

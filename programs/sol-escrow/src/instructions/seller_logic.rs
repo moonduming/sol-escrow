@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked};
 
 use crate::{error::ErrorCode, state::{Escrow, TransactionStatus}};
 
@@ -12,8 +13,10 @@ pub struct SellerConfirmed {
 
 #[derive(Accounts)]
 pub struct SellerConfirmation<'info> {
-    pub seller: SystemAccount<'info>,
+    #[account(mut)]
+    pub seller: Signer<'info>,
     pub buyer: SystemAccount<'info>,
+    pub nft_mint: Option<InterfaceAccount<'info, Mint>>,
 
     #[account(
         mut,
@@ -22,7 +25,14 @@ pub struct SellerConfirmation<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
+    #[account(mut)]
+    pub seller_nft_account: Option<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub buyer_nft_account: Option<InterfaceAccount<'info, TokenAccount>>,
+
     pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>
 }
 
 pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<()> {
@@ -31,6 +41,53 @@ pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<(
 
     require!(escrow_account.expiration > clock.unix_timestamp, ErrorCode::ExpirationTooFar);
     require!(escrow_account.status == TransactionStatus::Funded as u8, ErrorCode:: SellerConfirmationNotAllowed);
+
+    if escrow_account.is_nft {
+        // 获取seller_nft_account，没有报错
+        let seller_nft_account = match &ctx.accounts.seller_nft_account {
+            Some(nft_account) => nft_account,
+            None => return Err(ErrorCode::MissingNftAccount.into()),
+        };
+
+        // 判断是否是买家要购买的nft
+        if escrow_account.nft_mint.is_some() {
+            require!(seller_nft_account.mint == escrow_account.nft_mint.unwrap(), ErrorCode::InvalidNftAccount);
+        } else {
+            // 需要验证此nft是否属于collection_mint
+            require!(seller_nft_account.mint == escrow_account.collection_mint.unwrap(), ErrorCode::InvalidNftAccount);
+        };
+
+        // 验证卖家是否拥有此nft，nft是否有效
+        require!(seller_nft_account.owner == ctx.accounts.seller.key(), ErrorCode::InvalidNftOwner);
+        require!(seller_nft_account.amount == 1, ErrorCode::InvalidNftAmount);
+
+        // 将nft所有权转交给买家
+        let nft_mint = match &ctx.accounts.nft_mint {
+            Some(nft_mint) => nft_mint,
+            None => return Err(ErrorCode::AmountZero.into())
+        };
+
+        let buyer_nft_account = match &ctx.accounts.buyer_nft_account {
+            Some(buyer_nft_account) => buyer_nft_account,
+            None => return Err(ErrorCode::AmountZero.into())
+        };
+
+        require!(buyer_nft_account.owner == ctx.accounts.buyer.key(), ErrorCode::InvalidNftOwner);
+
+        let cpi_accounts = TransferChecked {
+            from: seller_nft_account.to_account_info(),
+            to: buyer_nft_account.to_account_info(),
+            mint: nft_mint.to_account_info(),
+            authority: ctx.accounts.seller.to_account_info()
+        };
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(), 
+            cpi_accounts
+        );
+
+        transfer_checked(cpi_ctx, 1, 0)?;
+    }
 
     escrow_account.seller = Some(ctx.accounts.seller.key());
     escrow_account.status = TransactionStatus::InTransit as u8;

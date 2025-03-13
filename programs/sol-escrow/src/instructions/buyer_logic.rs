@@ -147,7 +147,15 @@ pub struct OrderCancellation<'info> {
 }
 
 
-pub fn process_order(ctx: Context<CreateOrder>, amount: u64, expiration: i64) -> Result<()> {
+pub fn process_order(
+    ctx: Context<CreateOrder>, 
+    amount: u64, 
+    expiration: i64,
+    nft_mint: Option<Pubkey>,
+    collection_mint: Option<Pubkey>,
+    buyer_nft_account: Option<Pubkey>,
+    is_nft: bool
+) -> Result<()> {
     let escrow_account = &mut ctx.accounts.escrow;
 
     let clock = Clock::get()?;
@@ -156,11 +164,28 @@ pub fn process_order(ctx: Context<CreateOrder>, amount: u64, expiration: i64) ->
     require!(expiration >= min_allowed_expiration, ErrorCode::ExpirationTooSoon);
     require!(amount > 0, ErrorCode::AmountZero);
 
+    if is_nft {
+        let is_specific = nft_mint.is_some();
+        let is_collection = collection_mint.is_some();
+
+        require!(is_specific ^ is_collection, ErrorCode::InvalidNftSelection);
+
+        if is_specific {
+            escrow_account.nft_mint = nft_mint;
+        } else {
+            escrow_account.collection_mint = collection_mint;
+        }
+
+        require!(buyer_nft_account.is_some(), ErrorCode::InvalidNftSelection);
+        escrow_account.buyer_nft_account = buyer_nft_account;
+    };
+
     escrow_account.buyer = ctx.accounts.signer.key();
     escrow_account.token_mint = ctx.accounts.mint.key();
     escrow_account.amount = amount;
     escrow_account.escrow_vault = ctx.accounts.escrow_vault.key();
     escrow_account.expiration = expiration;
+    escrow_account.is_nft = is_nft;
     escrow_account.status = TransactionStatus::Created as u8;
 
     emit!(OrderMade {
