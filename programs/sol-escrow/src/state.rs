@@ -44,7 +44,6 @@ pub struct Escrow {
     pub token_mint: Pubkey,  // 交易的spl代币
     pub buyer_nft_account: Option<Pubkey>, // 买家nft账户
     pub nft_mint: Option<Pubkey>, // 购买的NFT的mint地址
-    pub collection_mint: Option<Pubkey>, // NFT集合地址
     pub amount: u64,  // 交易金额
     pub escrow_vault: Pubkey,  // 资金托管账户
     pub is_nft: bool, // 是否是nft交易

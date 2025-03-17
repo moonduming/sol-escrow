@@ -152,7 +152,6 @@ pub fn process_order(
     amount: u64, 
     expiration: i64,
     nft_mint: Option<Pubkey>,
-    collection_mint: Option<Pubkey>,
     buyer_nft_account: Option<Pubkey>,
     is_nft: bool
 ) -> Result<()> {
@@ -165,18 +164,10 @@ pub fn process_order(
     require!(amount > 0, ErrorCode::AmountZero);
 
     if is_nft {
-        let is_specific = nft_mint.is_some();
-        let is_collection = collection_mint.is_some();
-
-        require!(is_specific ^ is_collection, ErrorCode::InvalidNftSelection);
-
-        if is_specific {
-            escrow_account.nft_mint = nft_mint;
-        } else {
-            escrow_account.collection_mint = collection_mint;
-        }
-
+        require!(nft_mint.is_some(), ErrorCode::InvalidNftSelection);
         require!(buyer_nft_account.is_some(), ErrorCode::InvalidNftSelection);
+        
+        escrow_account.nft_mint = nft_mint;
         escrow_account.buyer_nft_account = buyer_nft_account;
     };
 

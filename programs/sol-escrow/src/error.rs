@@ -45,4 +45,24 @@ pub enum ErrorCode {
     /// NFT 账户的数量无效（应为1）
     #[msg("Invalid NFT amount: The NFT account must contain exactly one NFT.")]
     InvalidNftAmount,
+
+    /// 元数据账户缺失
+    #[msg("Missing metadata account: The metadata account for the NFT is required but was not provided.")]
+    MissingMetadata,
+
+    /// 无效的元数据账户
+    #[msg("Invalid metadata: Failed to parse or verify the metadata account.")]
+    InvalidMetadata,
+
+    /// 未提供 NFT mint 账户
+    #[msg("Missing NFT mint: The NFT mint account is required but was not provided.")]
+    MissingNftMint,
+
+    /// 未提供买家 NFT 账户
+    #[msg("Missing buyer NFT account: The buyer's NFT account is required but was not provided.")]
+    MissingBuyerNftAccount,
+
+    /// 未提供 NFT 集合 mint 账户
+    #[msg("Missing collection mint: The collection mint account is required but was not provided.")]
+    MissingCollectionMint,
 }

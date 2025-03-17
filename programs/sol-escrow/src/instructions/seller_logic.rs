@@ -35,12 +35,13 @@ pub struct SellerConfirmation<'info> {
     pub token_program: Interface<'info, TokenInterface>
 }
 
+
 pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<()> {
     let escrow_account = &mut ctx.accounts.escrow;
     let clock = Clock::get()?;
 
     require!(escrow_account.expiration > clock.unix_timestamp, ErrorCode::ExpirationTooFar);
-    require!(escrow_account.status == TransactionStatus::Funded as u8, ErrorCode:: SellerConfirmationNotAllowed);
+    require!(escrow_account.status == TransactionStatus::Funded as u8, ErrorCode::SellerConfirmationNotAllowed);
 
     if escrow_account.is_nft {
         // 获取seller_nft_account，没有报错
@@ -49,14 +50,9 @@ pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<(
             None => return Err(ErrorCode::MissingNftAccount.into()),
         };
 
-        // 判断是否是买家要购买的nft
-        if escrow_account.nft_mint.is_some() {
-            require!(seller_nft_account.mint == escrow_account.nft_mint.unwrap(), ErrorCode::InvalidNftAccount);
-        } else {
-            // 需要验证此nft是否属于collection_mint
-            require!(seller_nft_account.mint == escrow_account.collection_mint.unwrap(), ErrorCode::InvalidNftAccount);
-        };
-
+        let nft_mint = escrow_account.nft_mint.unwrap();
+        require!(seller_nft_account.mint == nft_mint, ErrorCode::InvalidNftAccount);
+        
         // 验证卖家是否拥有此nft，nft是否有效
         require!(seller_nft_account.owner == ctx.accounts.seller.key(), ErrorCode::InvalidNftOwner);
         require!(seller_nft_account.amount == 1, ErrorCode::InvalidNftAmount);
@@ -64,12 +60,12 @@ pub fn process_seller_confirmation(ctx: Context<SellerConfirmation>) -> Result<(
         // 将nft所有权转交给买家
         let nft_mint = match &ctx.accounts.nft_mint {
             Some(nft_mint) => nft_mint,
-            None => return Err(ErrorCode::AmountZero.into())
+            None => return Err(ErrorCode::MissingNftMint.into())
         };
 
         let buyer_nft_account = match &ctx.accounts.buyer_nft_account {
             Some(buyer_nft_account) => buyer_nft_account,
-            None => return Err(ErrorCode::AmountZero.into())
+            None => return Err(ErrorCode::MissingBuyerNftAccount.into())
         };
 
         require!(buyer_nft_account.owner == ctx.accounts.buyer.key(), ErrorCode::InvalidNftOwner);

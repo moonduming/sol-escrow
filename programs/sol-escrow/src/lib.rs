@@ -19,12 +19,11 @@ pub mod sol_escrow {
         amount: u64, 
         expiration: i64, 
         nft_mint: Option<Pubkey>,
-        collection_mint: Option<Pubkey>,
         buyer_nft_account: Option<Pubkey>,
         is_nft: bool
     ) -> Result<()> {
         msg!("创建订单");
-        process_order(ctx, amount, expiration, nft_mint, collection_mint, buyer_nft_account, is_nft)
+        process_order(ctx, amount, expiration, nft_mint, buyer_nft_account, is_nft)
     }
 
     // 买家付款确认
